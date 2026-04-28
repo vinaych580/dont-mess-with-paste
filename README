@@ -1,0 +1,30 @@
+## Build Instructions
+
+This extension requires NO build process. All source files are plain
+JavaScript, HTML, and CSS with no transpilation, bundling, or minification.
+
+The uploaded .zip IS the source code — it can be loaded directly as a
+browser extension.
+
+### To verify / reproduce:
+
+1. Extract the zip file.
+2. That's it. The extracted files are the complete, unmodified source code.
+
+### To load in Firefox:
+
+1. Open about:debugging#/runtime/this-firefox
+2. Click "Load Temporary Add-on..."
+3. Select manifest.json from the extracted folder.
+
+### To load in Chrome:
+
+1. Open chrome://extensions
+2. Enable Developer Mode
+3. Click "Load unpacked" and select the extracted folder.
+
+### Environment
+
+- No build tools required (no Node.js, npm, webpack, etc.)
+- Works on any operating system
+- No dependencies or third-party libraries

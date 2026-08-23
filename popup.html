@@ -85,6 +85,32 @@
       font-size: 12px;
       color: #888;
     }
+    .count {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #4caf50;
+      font-weight: 600;
+    }
+    .footer-link {
+      display: block;
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+      font-size: 12px;
+      color: #1a73e8;
+      text-decoration: none;
+      cursor: pointer;
+      background: none;
+      border-left: none;
+      border-right: none;
+      border-bottom: none;
+      text-align: left;
+      width: 100%;
+      font-family: inherit;
+    }
+    .footer-link:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
@@ -93,6 +119,7 @@
     <span class="dot" id="statusDot"></span>
     <span id="statusText">Active on this site</span>
   </div>
+  <div class="count" id="blockedCount"></div>
   <div class="toggle-row">
     <span>Extension active</span>
     <label class="switch">
@@ -121,6 +148,8 @@
     Aggressive mode for stubborn sites. It blocks scripts from hijacking Ctrl/Cmd + C, X, V and copy/paste/cut events.
   </div>
   <div class="info">Removes copy/paste/select restrictions.</div>
+  <div class="subtext">Right-click selected text and choose "Copy selection anyway" as a last-resort fallback. Press <strong>Alt+Shift+F</strong> to toggle Force Mode instantly.</div>
+  <button class="footer-link" id="manageSitesLink" type="button">Manage all sites &rsaquo;</button>
   <script src="popup.js"></script>
 </body>
 </html>

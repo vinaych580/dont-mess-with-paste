@@ -22,11 +22,13 @@
   // Install force-mode event guards immediately at document_start so we win listener order.
   // The handler is inert until runtimeEnabled/runtimeForceMode are set by activate().
   const shouldGuardNow = function (event) {
-    if (!runtimeEnabled || !runtimeForceMode) return false;
+    if (!runtimeEnabled) return false;
 
     if (BLOCKED_EVENTS.includes(event.type)) {
       return true;
     }
+
+    if (!runtimeForceMode) return false;
 
     if (
       event.type === "keydown" ||
@@ -41,22 +43,248 @@
       return inputType === "insertFromPaste" || inputType === "deleteByCut";
     }
 
+    if (event.type === "mousedown") {
+      return event.button === 0;
+    }
+
     return false;
   };
+
+  // --- On-page UI: a toast confirming a block was neutralized, and a floating
+  // "paste anyway" helper for fields where even the neutralized paste doesn't
+  // stick (e.g. a framework reverting the DOM after the fact). Both live inside
+  // a closed shadow root so the host page's CSS can never clash with them.
+  let anyBlockDetected = false;
+  let uiRootCache = null;
+
+  function getUiRoot() {
+    if (uiRootCache) return uiRootCache;
+
+    const host = document.createElement("div");
+    host.style.all = "initial";
+    (document.body || document.documentElement).appendChild(host);
+    const shadow = host.attachShadow({ mode: "closed" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+      .toast {
+        position: fixed;
+        bottom: 16px;
+        right: 16px;
+        background: rgba(30, 30, 30, 0.92);
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        z-index: 2147483647;
+        opacity: 0;
+        transform: translateY(6px);
+        transition: opacity 0.15s ease, transform 0.15s ease;
+        pointer-events: none;
+      }
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .paste-helper {
+        position: fixed;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        background: #fff;
+        color: #333;
+        font-size: 13px;
+        line-height: 1;
+        cursor: pointer;
+        z-index: 2147483647;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+        padding: 0;
+      }
+      .paste-helper:hover {
+        background: #f0f0f0;
+      }
+    `;
+    shadow.appendChild(style);
+
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    shadow.appendChild(toast);
+
+    const pasteHelperBtn = document.createElement("button");
+    pasteHelperBtn.type = "button";
+    pasteHelperBtn.className = "paste-helper";
+    pasteHelperBtn.title = "Paste from clipboard";
+    pasteHelperBtn.textContent = "\u{1F4CB}";
+    shadow.appendChild(pasteHelperBtn);
+
+    uiRootCache = { host: host, shadow: shadow, toast: toast, pasteHelperBtn: pasteHelperBtn };
+    return uiRootCache;
+  }
+
+  const TOAST_MESSAGES = {
+    copy: "Copy allowed",
+    paste: "Paste allowed",
+    cut: "Cut allowed",
+    selectstart: "Selection unlocked",
+    contextmenu: "Right-click menu unlocked",
+    dragstart: "Drag unlocked",
+    keydown: "Shortcut unblocked",
+    keyup: "Shortcut unblocked",
+    keypress: "Shortcut unblocked",
+    beforeinput: "Input unblocked",
+    mousedown: "Selection unlocked"
+  };
+
+  let toastTimer = null;
+  function showToast(type) {
+    const root = getUiRoot();
+    root.toast.textContent = TOAST_MESSAGES[type] || "Restriction bypassed";
+    root.toast.classList.add("visible");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      root.toast.classList.remove("visible");
+    }, 1500);
+  }
+
+  function isTextEditable(el) {
+    if (!el || !el.tagName) return false;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName === "INPUT") {
+      const type = (el.type || "text").toLowerCase();
+      return ["text", "search", "email", "url", "tel", "password", "number"].includes(type);
+    }
+    return !!el.isContentEditable;
+  }
+
+  function insertTextIntoElement(el, text) {
+    el.focus();
+    if (document.execCommand && document.execCommand("insertText", false, text)) return;
+
+    if (el.isContentEditable) {
+      document.execCommand("insertHTML", false, text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"));
+      return;
+    }
+
+    const start = el.selectionStart != null ? el.selectionStart : el.value.length;
+    const end = el.selectionEnd != null ? el.selectionEnd : el.value.length;
+    el.value = el.value.slice(0, start) + text + el.value.slice(end);
+    el.selectionStart = el.selectionEnd = start + text.length;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function setupPasteHelper() {
+    let currentTarget = null;
+
+    document.addEventListener("focusin", function (e) {
+      if (!isTextEditable(e.target)) return;
+      if (!runtimeForceMode && !anyBlockDetected) return;
+
+      currentTarget = e.target;
+      const root = getUiRoot();
+      const rect = e.target.getBoundingClientRect();
+      root.pasteHelperBtn.style.top = Math.max(4, rect.top - 8) + "px";
+      root.pasteHelperBtn.style.left = Math.max(4, rect.right - 28) + "px";
+      root.pasteHelperBtn.style.display = "flex";
+    }, true);
+
+    document.addEventListener("focusout", function (e) {
+      if (e.target !== currentTarget) return;
+      currentTarget = null;
+      getUiRoot().pasteHelperBtn.style.display = "none";
+    }, true);
+
+    window.addEventListener("scroll", function () {
+      getUiRoot().pasteHelperBtn.style.display = "none";
+    }, true);
+
+    const btn = getUiRoot().pasteHelperBtn;
+    // Prevent the mousedown from stealing focus away from currentTarget.
+    btn.addEventListener("mousedown", function (e) { e.preventDefault(); });
+    btn.addEventListener("click", function () {
+      if (!currentTarget || !navigator.clipboard || !navigator.clipboard.readText) return;
+      const target = currentTarget;
+      navigator.clipboard.readText().then(function (text) {
+        if (text) insertTextIntoElement(target, text);
+      }).catch(function () {});
+    });
+  }
+
+  function reportBlockedAttempt(type) {
+    anyBlockDetected = true;
+    showToast(type);
+    try {
+      chrome.runtime.sendMessage({ type: "blockedAttempt" });
+    } catch (_) {}
+  }
 
   const earlyGuard = function (event) {
     if (!shouldGuardNow(event)) return;
     event.stopImmediatePropagation();
     event.stopPropagation();
+    reportBlockedAttempt(event.type);
   };
 
   for (const evt of BLOCKED_EVENTS.concat(FORCED_EVENTS)) {
     window.addEventListener(evt, earlyGuard, true);
   }
 
+  // Bridge: the page-context script (injected in activate()) dispatches this
+  // on window whenever it neutralizes a site's own preventDefault() call.
+  window.addEventListener("__dmwp_blocked", function (e) {
+    reportBlockedAttempt(e.detail && e.detail.type);
+  });
+
+  try {
+    chrome.runtime.sendMessage({ type: "resetCount" });
+  } catch (_) {}
+
+  function copySelectionAnyway() {
+    const text = String(window.getSelection());
+    if (!text) return Promise.resolve(false);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(
+        function () { return true; },
+        function () { return execCommandCopyFallback(text); }
+      );
+    }
+    return Promise.resolve(execCommandCopyFallback(text));
+  }
+
+  function execCommandCopyFallback(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    ta.style.left = "-9999px";
+    (document.body || document.documentElement).appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand("copy");
+    } catch (_) {
+      ok = false;
+    }
+    ta.remove();
+    return ok;
+  }
+
   chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
     if (message && message.type === "getHostname") {
       sendResponse({ hostname: location.hostname });
+      return false;
+    }
+
+    if (message && message.type === "copySelectionAnyway") {
+      copySelectionAnyway().then(function (ok) {
+        sendResponse({ ok: ok });
+      });
+      return true; // async response
     }
   });
 
@@ -201,6 +429,8 @@
 
     // 3. Force-mode listener guards are installed eagerly at document_start.
 
+    setupPasteHelper();
+
     // 4. Inject a page-level script to intercept addEventListener and property assignments
     const script = document.createElement("script");
     script.textContent = `(function() {
@@ -219,7 +449,8 @@
           type === "keydown" ||
           type === "keyup" ||
           type === "keypress" ||
-          type === "beforeinput"
+          type === "beforeinput" ||
+          type === "mousedown"
         );
       }
 
@@ -237,7 +468,6 @@
 
       function shouldIgnorePreventDefault(event) {
         if (blockedEvents.includes(event.type)) {
-           if (event.type === "mousedown" && event.button !== 2) return false;
            return true;
         }
         if (!forceMode) return false;
@@ -253,6 +483,10 @@
         if (event.type === "beforeinput") {
           var inputType = typeof event.inputType === "string" ? event.inputType : "";
           return inputType === "insertFromPaste" || inputType === "deleteByCut";
+        }
+
+        if (event.type === "mousedown") {
+          return event.button === 0;
         }
 
         return false;
@@ -271,7 +505,9 @@
         wrapped = function(event) {
           var origPreventDefault = event.preventDefault;
           if (shouldIgnorePreventDefault(event)) {
-            event.preventDefault = function() {};
+            event.preventDefault = function() {
+              window.dispatchEvent(new CustomEvent("__dmwp_blocked", { detail: { type: event.type } }));
+            };
           }
           try {
             return listener.apply(this, arguments);
@@ -297,7 +533,9 @@
           handleEvent: function(event) {
             var origPreventDefault = event.preventDefault;
             if (shouldIgnorePreventDefault(event)) {
-              event.preventDefault = function() {};
+              event.preventDefault = function() {
+                window.dispatchEvent(new CustomEvent("__dmwp_blocked", { detail: { type: event.type } }));
+              };
             }
             try {
               return listener.handleEvent.apply(listener, arguments);

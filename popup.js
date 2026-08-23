@@ -6,6 +6,8 @@
   const forceToggle = document.getElementById("forceToggle");
   const dot = document.getElementById("statusDot");
   const text = document.getElementById("statusText");
+  const blockedCount = document.getElementById("blockedCount");
+  const manageSitesLink = document.getElementById("manageSitesLink");
 
   let tabId = null;
   let initialized = false;
@@ -57,6 +59,23 @@
     if (tabId == null) return;
     chrome.tabs.reload(tabId);
   }
+
+  function loadBlockedCount() {
+    if (tabId == null) {
+      blockedCount.textContent = "";
+      return;
+    }
+    chrome.runtime.sendMessage({ type: "getCount", tabId: tabId }, function (response) {
+      if (chrome.runtime.lastError || !response) return;
+      blockedCount.textContent = response.count > 0
+        ? "Blocked " + response.count + " attempt" + (response.count === 1 ? "" : "s") + " on this page"
+        : "No blocking attempts seen on this page";
+    });
+  }
+
+  manageSitesLink.addEventListener("click", function () {
+    chrome.runtime.openOptionsPage();
+  });
 
   function parseHostname(tab) {
     if (!tab) return "";
@@ -141,6 +160,7 @@
       }
 
       tabId = tabs[0].id;
+      loadBlockedCount();
       const directHostname = parseHostname(tabs[0]);
       if (directHostname) {
         initForHostname(directHostname);

@@ -27,6 +27,8 @@ $filesToCopy = @(
   "content.js",
   "popup.html",
   "popup.js",
+  "options.html",
+  "options.js",
   "icons"
 )
 

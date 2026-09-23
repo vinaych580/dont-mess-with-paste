@@ -1,0 +1,194 @@
+<!doctype html>
+<!--
+  Test harness for paste-fix.js.
+
+  Reproduces Moodle VPL's restricted editor: Ace 1.4.12 in Java mode with
+  autocompletion, plus a verbatim copy of VPL's paste-blocking code. Serve the
+  project root over http and open /test/vpl-harness.html (with the fix) or
+  /test/vpl-harness.html?fix=0 (without it). Results appear on the page and in
+  window.testResults.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>VPL paste harness</title>
+<script>
+  window.fixLoaded = new URLSearchParams(location.search).get("fix") !== "0";
+  // paste-fix.js runs at document_start, before Ace and VPL, so load it first.
+  if (window.fixLoaded) document.write('<script src="../paste-fix.js"><\/script>');
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ext-language_tools.js"></script>
+<style>
+  body { font: 14px system-ui, sans-serif; margin: 16px; }
+  .ed { width: 600px; height: 160px; border: 1px solid #999; margin-bottom: 8px; }
+  .pass { color: #067d17; } .fail { color: #b00020; font-weight: bold; }
+  pre { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>VPL paste harness <small id="mode"></small></h1>
+<div id="vpl_file1" class="ed"></div>
+<div id="vpl_file2" class="ed"></div>
+<input id="plain" placeholder="plain input outside Ace">
+<ol id="results"></ol>
+
+<script>
+  ace.config.set("basePath", "https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/");
+
+  // --- Replica of VPL's editor setup and restricted-edit code -------------
+  var restrictedEdit = true;
+  var localClipboard = "";
+  var fileManager = {
+    restrictedEdit: restrictedEdit,
+    setClipboard: function (t) { localClipboard = t; },
+    getClipboard: function () { return localClipboard; },
+    restrictedPaste: function (e) { return !restrictedEdit || (e.stopPropagation(), false); }
+  };
+
+  function makeVplEditor(id) {
+    ace.require("ace/ext/language_tools");
+    var editor = ace.edit(id);
+    editor.setOptions({ enableBasicAutocompletion: true, enableSnippets: true });
+    editor.getSession().setMode("ace/mode/java");
+    var prevOnPaste = editor.onPaste;
+    editor.onPaste = function (s) {
+      fileManager.restrictedEdit ? editor.insert(fileManager.getClipboard()) : prevOnPaste.call(editor, s);
+    };
+    editor.on("copy", function (t) { fileManager.setClipboard(t.text); });
+    // $(tid).on("paste", "*", fileManager.restrictedPaste): jQuery turns
+    // `return false` into preventDefault + stopPropagation.
+    document.getElementById(id).addEventListener("paste", function (e) {
+      if (fileManager.restrictedPaste(e) === false) e.preventDefault();
+    });
+    return editor;
+  }
+
+  var editor = makeVplEditor("vpl_file1");
+  var roEditor = makeVplEditor("vpl_file2");
+  roEditor.setValue("read only file", -1);
+  roEditor.setReadOnly(true);
+
+  // --- Helpers --------------------------------------------------------------
+  function clipboardEvent(type, text) {
+    var dt = new DataTransfer();
+    if (text != null) dt.setData("text/plain", text);
+    return new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true });
+  }
+  function paste(ed, text) {
+    ed.focus();
+    ed.textInput.getElement().dispatchEvent(clipboardEvent("paste", text));
+  }
+  function copy(ed) {
+    ed.focus();
+    var ev = clipboardEvent("copy");
+    ed.textInput.getElement().dispatchEvent(ev);
+    return ev.clipboardData.getData("text/plain");
+  }
+  function lf(s) { return s.replace(/\r\n?/g, "\n"); }
+
+  var JAVA =
+    "public class Main {\r\n" +
+    "\tpublic static void main(String[] args) {\r\n" +
+    "        int[] a = {5, 3, 1};\r\n" +
+    "        for (int i = 0; i < a.length; i++) {\r\n" +
+    "            System.out.println(a[i]);   // trailing spaces   \r\n" +
+    "        }\r\n" +
+    "\t}\r\n" +
+    "}\r\n";
+
+  // --- Tests ----------------------------------------------------------------
+  var tests = [];
+  function test(name, fn) { tests.push({ name: name, fn: fn }); }
+
+  if (!window.fixLoaded) {
+    test("control: VPL block is reproduced (real clipboard discarded)", function () {
+      editor.setValue("", -1);
+      localClipboard = "LOCAL";
+      paste(editor, JAVA);
+      return editor.getValue() === "LOCAL" || "got " + JSON.stringify(editor.getValue());
+    });
+  } else {
+    test("multi-line indented Java pastes exactly", function () {
+      editor.setValue("", -1);
+      localClipboard = "LOCAL";
+      paste(editor, JAVA);
+      return lf(editor.getValue()) === lf(JAVA) || "got " + JSON.stringify(editor.getValue());
+    });
+
+    test("paste into the middle of an indented block inserts only the pasted text", function () {
+      var before = "class A {\n    void f() {\n        \n    }\n}\n";
+      var snippet = "if (x) {\n    y();\n}";
+      editor.session.setNewLineMode("unix");
+      editor.setValue(before, -1);
+      editor.moveCursorTo(2, 8);
+      paste(editor, snippet);
+      var want = "class A {\n    void f() {\n        " + snippet + "\n    }\n}\n";
+      return editor.getValue() === want || "got " + JSON.stringify(editor.getValue());
+    });
+
+    test("pasted text replaces the selection", function () {
+      editor.setValue("int x = OLD;", -1);
+      editor.find("OLD");
+      paste(editor, "42");
+      return editor.getValue() === "int x = 42;" || "got " + JSON.stringify(editor.getValue());
+    });
+
+    test("undo removes the whole paste in one step", function () {
+      editor.setValue("start", -1);
+      editor.session.getUndoManager().reset();
+      editor.navigateFileEnd();
+      paste(editor, "\nline1\n    line2");
+      editor.undo();
+      return editor.getValue() === "start" || "got " + JSON.stringify(editor.getValue());
+    });
+
+    // The fix steps aside for read-only files. (VPL's own onPaste still
+    // inserts its local clipboard there -- a VPL quirk, not ours.)
+    test("read-only editor does not receive the pasted text", function () {
+      paste(roEditor, "SHOULD NOT APPEAR");
+      return roEditor.getValue().indexOf("SHOULD NOT APPEAR") === -1 || "got " + JSON.stringify(roEditor.getValue());
+    });
+
+    test("paste into a plain input outside Ace is not intercepted", function () {
+      var input = document.getElementById("plain");
+      input.focus();
+      var ev = clipboardEvent("paste", "hello");
+      input.dispatchEvent(ev);
+      return ev.defaultPrevented === false || "event was cancelled";
+    });
+
+    // No text on the clipboard (e.g. an image): the fix steps aside and Ace
+    // ignores the empty paste, exactly as without the extension.
+    test("empty clipboard leaves the editor unchanged", function () {
+      editor.setValue("keep", -1);
+      localClipboard = "LOCAL";
+      paste(editor, null);
+      return editor.getValue() === "keep" || "got " + JSON.stringify(editor.getValue());
+    });
+  }
+
+  test("copy of a multi-line selection yields the whole selection", function () {
+    editor.session.setNewLineMode("unix");
+    editor.setValue("line one\n    line two\n\tline three\nline four", -1);
+    editor.selection.setRange(new (ace.require("ace/range").Range)(0, 0, 2, 12));
+    var got = copy(editor);
+    var want = "line one\n    line two\n\tline three";
+    return got === want || "got " + JSON.stringify(got);
+  });
+
+  var results = document.getElementById("results");
+  document.getElementById("mode").textContent = window.fixLoaded ? "(with fix)" : "(without fix)";
+  window.testResults = tests.map(function (t) {
+    var outcome;
+    try { outcome = t.fn(); } catch (e) { outcome = "threw " + e; }
+    var ok = outcome === true;
+    var li = document.createElement("li");
+    li.className = ok ? "pass" : "fail";
+    li.textContent = (ok ? "PASS " : "FAIL ") + t.name + (ok ? "" : " -- " + outcome);
+    results.appendChild(li);
+    return { name: t.name, ok: ok, detail: ok ? "" : outcome };
+  });
+</script>
+</body>
+</html>

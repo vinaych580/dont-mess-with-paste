@@ -23,12 +23,7 @@ $targets = @(
 )
 
 $filesToCopy = @(
-  "background.js",
-  "content.js",
-  "popup.html",
-  "popup.js",
-  "options.html",
-  "options.js",
+  "paste-fix.js",
   "icons"
 )
 
@@ -45,14 +40,6 @@ foreach ($target in $targets) {
   $targetManifest = $manifest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
   if ($target.StripGecko) {
     $targetManifest.PSObject.Properties.Remove("browser_specific_settings")
-  } else {
-    # Firefox MV3 background script handling
-    if ($targetManifest.background -and $targetManifest.background.service_worker) {
-      $workerScript = $targetManifest.background.service_worker
-      $targetManifest.background.PSObject.Properties.Remove("service_worker")
-      $targetManifest.background.PSObject.Properties.Remove("type")
-      $targetManifest.background | Add-Member -NotePropertyName "scripts" -NotePropertyValue @($workerScript)
-    }
   }
 
   $targetManifestPath = Join-Path $staging "manifest.json"

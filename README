@@ -1,30 +1,28 @@
-## Build Instructions
+Don't Mess With Paste
+=====================
 
-This extension requires NO build process. All source files are plain
-JavaScript, HTML, and CSS with no transpilation, bundling, or minification.
+Makes paste work in Moodle VPL's code editor when "restricted editor" is on,
+in Chrome and Firefox. Text is pasted exactly as copied, and copy is left alone.
 
-The uploaded .zip IS the source code — it can be loaded directly as a
-browser extension.
+How it works: VPL replaces the Ace editor's paste with one that discards the
+real clipboard. paste-fix.js catches the paste first and runs Ace's own paste
+command with the real clipboard text. See
+docs/superpowers/specs/2026-09-23-vpl-paste-fix-design.md.
 
-### To verify / reproduce:
+No build step: the files are plain JavaScript.
 
-1. Extract the zip file.
-2. That's it. The extracted files are the complete, unmodified source code.
+Load for testing
+----------------
+Chrome:  chrome://extensions -> Developer mode -> Load unpacked -> this folder.
+Firefox: about:debugging#/runtime/this-firefox -> Load Temporary Add-on ->
+         manifest.json (Firefox 140 or later).
 
-### To load in Firefox:
+Package
+-------
+.\pack-extension.ps1   (writes dist/dont-mess-with-paste-{chrome,firefox}-<version>.zip)
 
-1. Open about:debugging#/runtime/this-firefox
-2. Click "Load Temporary Add-on..."
-3. Select manifest.json from the extracted folder.
-
-### To load in Chrome:
-
-1. Open chrome://extensions
-2. Enable Developer Mode
-3. Click "Load unpacked" and select the extracted folder.
-
-### Environment
-
-- No build tools required (no Node.js, npm, webpack, etc.)
-- Works on any operating system
-- No dependencies or third-party libraries
+Test
+----
+Serve the project root over http (python -m http.server 8765) and open
+http://localhost:8765/test/vpl-harness.html, and ?fix=0 for the unfixed
+control. Every line should read PASS.

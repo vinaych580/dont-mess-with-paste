@@ -16,6 +16,11 @@ in Chrome and Firefox. Text is pasted exactly as copied, and copy is left alone.
 3. Click **Load unpacked** and choose the unzipped folder.
 4. Reload any VPL page that was already open.
 
+The Chrome download also works in other Chromium-based browsers (Brave,
+Microsoft Edge, Opera, Vivaldi). Follow the same steps on their extensions
+page: `brave://extensions`, `edge://extensions`, `opera://extensions` or
+`vivaldi://extensions`.
+
 ### Install in Firefox (140 or later)
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on** and choose the Firefox zip (or the

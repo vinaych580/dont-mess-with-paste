@@ -55,8 +55,11 @@ No build step: the files are plain JavaScript.
 
 ## Development
 
-Load the project folder itself as an unpacked extension (Chrome) or its
-`manifest.json` as a temporary add-on (Firefox).
+Build unpacked copies with `.\pack-extension.ps1 -OutputDir build -KeepUnpacked`,
+then load `build/chrome` as an unpacked extension (Chrome) or
+`build/firefox/manifest.json` as a temporary add-on (Firefox). These hold
+exactly what ships, without `node_modules/` and the other development files.
+Re-run the script after changing `paste-fix.js`, then reload the extension.
 
 Package with `.\pack-extension.ps1`, which writes
 `dist/dont-mess-with-paste-{chrome,firefox}-<version>.zip`. Delete the previous
@@ -77,7 +80,7 @@ To look at it yourself, run `node tests/serve.js` and open
 `http://localhost:8765/test/vpl-harness.html` (or `?fix=0` for the unfixed
 control). Every line should read PASS.
 
-To lint the Firefox build, run `.\pack-extension.ps1 -OutputDir build`, unzip
-the Firefox zip to `build/firefox`, then run `npm run lint:firefox`.
+To lint the Firefox build with `addons-linter` (the linter addons.mozilla.org
+uses), build it as above, then run `npm run lint:firefox`.
 
 CI runs the tests and the lint on every push.

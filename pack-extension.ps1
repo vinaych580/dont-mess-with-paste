@@ -1,5 +1,8 @@
 param(
-  [string]$OutputDir = "dist"
+  [string]$OutputDir = "dist",
+  # Also leave each build unzipped in <OutputDir>/chrome and <OutputDir>/firefox,
+  # for loading as an unpacked extension and for linting.
+  [switch]$KeepUnpacked
 )
 
 $ErrorActionPreference = "Stop"
@@ -78,7 +81,15 @@ foreach ($target in $targets) {
     $zipStream.Dispose()
   }
 
-  Remove-Item -Recurse -Force $staging
-
-  Write-Host "Built $zipPath"
+  if ($KeepUnpacked) {
+    $unpacked = Join-Path $distPath $target.Name
+    if (Test-Path $unpacked) {
+      Remove-Item -Recurse -Force $unpacked
+    }
+    Move-Item $staging $unpacked
+    Write-Host "Built $zipPath and $unpacked"
+  } else {
+    Remove-Item -Recurse -Force $staging
+    Write-Host "Built $zipPath"
+  }
 }

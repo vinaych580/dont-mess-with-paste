@@ -17,13 +17,11 @@ jobs:
       - run: npx playwright install --with-deps chromium firefox
       - name: Harness tests (Chromium and Firefox)
         run: npm test
-      - name: Build zips
+      - name: Build
         shell: pwsh
-        run: ./pack-extension.ps1 -OutputDir build
+        run: ./pack-extension.ps1 -OutputDir build -KeepUnpacked
       - name: Lint the Firefox build
-        run: |
-          unzip -q build/dont-mess-with-paste-firefox-*.zip -d build/firefox
-          npm run lint:firefox
+        run: npm run lint:firefox
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

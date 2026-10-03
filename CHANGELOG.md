@@ -2,7 +2,9 @@
 
 ## Unreleased
 - Automated tests: the VPL harness now runs in Chromium and Firefox on every
-  push, and the Firefox build is checked with `web-ext lint`.
+  push, and the Firefox build is checked with `addons-linter`.
+- `pack-extension.ps1 -KeepUnpacked` also leaves unzipped builds for
+  development, so you no longer load the project folder itself.
 - Added a license, a privacy section and an issue form for reporting pages
   where paste still doesn't work.
 

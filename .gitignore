@@ -1,0 +1,9 @@
+# Editor and local tool settings
+.idea/
+.claude/settings.local.json
+
+# Development dependencies and outputs
+node_modules/
+build/
+test-results/
+playwright-report/

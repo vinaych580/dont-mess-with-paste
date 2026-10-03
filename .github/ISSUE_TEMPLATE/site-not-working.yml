@@ -1,0 +1,40 @@
+name: Paste not working
+description: Report a page or editor where the extension does not fix paste.
+title: "Paste not working: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Do not post links to private course pages, your
+        username, or any password.** Describe the platform instead.
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: e.g. Chrome 141, Firefox 145, Brave 1.84
+    validations:
+      required: true
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+      description: Shown on your browser's extensions page.
+      placeholder: e.g. 2.0.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and editor
+      description: Which site or tool, and what kind of editor if you know.
+      placeholder: e.g. Moodle VPL restricted editor, Moodle 4.3
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: For example, nothing was pasted, extra spaces were added, or copy stopped working.
+    validations:
+      required: true

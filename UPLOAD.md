@@ -15,7 +15,7 @@ The Chrome ZIP strips `browser_specific_settings`; the Firefox ZIP keeps it for
 the Gecko id and the AMO data-collection disclosure (`none`).
 
 ## Pre-Upload Checklist
-1. Run `test/vpl-harness.html` (see README): all PASS.
+1. CI is green for the commit you are packaging (or `npm test` passes locally).
 2. Load the unpacked extension and, on a VPL restricted editor, check that
    Ctrl+V and right-click paste insert text exactly as copied, and that copy
    from the editor still gives the full selection.

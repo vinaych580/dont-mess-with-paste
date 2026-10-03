@@ -1,5 +1,7 @@
 # Don't Mess With Paste
 
+[![CI](https://github.com/vinaych580/dont-mess-with-paste/actions/workflows/ci.yml/badge.svg)](https://github.com/vinaych580/dont-mess-with-paste/actions/workflows/ci.yml)
+
 Makes paste work in Moodle VPL's code editor when "restricted editor" is on,
 in Chrome and Firefox. Text is pasted exactly as copied, and copy is left alone.
 
@@ -30,6 +32,18 @@ page: `brave://extensions`, `edge://extensions`, `opera://extensions` or
 Firefox removes temporary add-ons when it restarts, so repeat these steps after
 a restart until the add-on is signed on addons.mozilla.org.
 
+## Privacy
+
+The extension asks for no permissions, makes no network requests, and stores
+and collects nothing. It runs only on pages under `/mod/vpl/`, and only acts
+when you paste into the code editor.
+
+## Use it within your course's rules
+
+Teachers turn on VPL's restricted editor on purpose, and some courses count
+pasting code from elsewhere as an academic-integrity issue. Check your
+course's rules before using this extension.
+
 ## How it works
 
 VPL replaces the Ace editor's paste with one that discards the real clipboard.
@@ -48,6 +62,22 @@ Package with `.\pack-extension.ps1`, which writes
 `dist/dont-mess-with-paste-{chrome,firefox}-<version>.zip`. Delete the previous
 version's zips and update the download links above when the version changes.
 
-Test by serving the project root (`python -m http.server 8765`) and opening
-`http://localhost:8765/test/vpl-harness.html`, and `?fix=0` for the unfixed
-control. Every line should read PASS.
+### Tests
+
+`test/vpl-harness.html` reproduces VPL's restricted editor and its
+paste-blocking code. To run it in Chromium and Firefox:
+
+```
+npm install
+npx playwright install chromium firefox
+npm test
+```
+
+To look at it yourself, run `node tests/serve.js` and open
+`http://localhost:8765/test/vpl-harness.html` (or `?fix=0` for the unfixed
+control). Every line should read PASS.
+
+To lint the Firefox build, run `.\pack-extension.ps1 -OutputDir build`, unzip
+the Firefox zip to `build/firefox`, then run `npm run lint:firefox`.
+
+CI runs the tests and the lint on every push.

@@ -73,7 +73,11 @@
   function clipboardEvent(type, text) {
     var dt = new DataTransfer();
     if (text != null) dt.setData("text/plain", text);
-    return new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true });
+    var ev = new ClipboardEvent(type, { clipboardData: dt, bubbles: true, cancelable: true });
+    // Firefox copies clipboardData for untrusted events and drops its data
+    // (real pastes are unaffected), so expose our DataTransfer directly.
+    Object.defineProperty(ev, "clipboardData", { value: dt });
+    return ev;
   }
   function paste(ed, text) {
     ed.focus();
